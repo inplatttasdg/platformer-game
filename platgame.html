@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple 2D Platformer - 6 Levels</title>
+    <style>
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        canvas { background: #222; border: 2px solid #555; }
+    </style>
+</head>
+<body>
+<canvas id="game" width="600" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const player = { x: 50, y: 300, w: 20, h: 20, vx: 0, vy: 0, grounded: false };
+const gravity = 0.5;
+const keys = {};
+
+let currentLevel = 0;
+
+const levels = [
+    // Level 1: Standard
+    {
+        platforms: [
+            { x: 0, y: 380, w: 600, h: 20 },
+            { x: 120, y: 300, w: 100, h: 15 },
+            { x: 270, y: 220, w: 120, h: 15 },
+            { x: 440, y: 150, w: 100, h: 15 }
+        ],
+        goal: { x: 500, y: 110, w: 20, h: 20 },
+        coins: [], movingPlatforms: [], enemies: []
+    },
+    // Level 2: Staircase Climb
+    {
+        platforms: [
+            { x: 0, y: 380, w: 600, h: 20 },
+            { x: 50, y: 310, w: 90, h: 15 },
+            { x: 180, y: 250, w: 90, h: 15 },
+            { x: 310, y: 190, w: 90, h: 15 },
+            { x: 200, y: 130, w: 100, h: 15 }
+        ],
+        goal: { x: 240, y: 90, w: 20, h: 20 },
+        coins: [], movingPlatforms: [], enemies: []
+    },
+    // Level 3: Precision Jumps
+    {
+        platforms: [
+            { x: 0, y: 380, w: 600, h: 20 },
+            { x: 100, y: 320, w: 60, h: 15 },
+            { x: 220, y: 260, w: 60, h: 15 },
+            { x: 340, y: 200, w: 60, h: 15 },
+            { x: 460, y: 140, w: 80, h: 15 }
+        ],
+        goal: { x: 490, y: 100, w: 20, h: 20 },
+        coins: [], movingPlatforms: [], enemies: []
+    },
+    // Level 4: Longer Route + 3 Required Off-Route Coins
+    {
+        platforms: [
+            { x: 0, y: 380, w: 600, h: 20 },
+            { x: 20, y: 300, w: 80, h: 15 },
+            { x: 130, y: 240, w: 80, h: 15 },
+            { x: 20, y: 170, w: 80, h: 15 },
+            { x: 250, y: 320, w: 90, h: 15 },
+            { x: 380, y: 260, w: 80, h: 15 },
+            { x: 490, y: 320, w: 80, h: 15 },
+            { x: 260, y: 180, w: 90, h: 15 },
+            { x: 430, y: 120, w: 110, h: 15 }
+        ],
+        goal: { x: 490, y: 80, w: 20, h: 20 },
+        coins: [
+            { x: 50, y: 140, w: 12, h: 12, collected: false },
+            { x: 520, y: 290, w: 12, h: 12, collected: false },
+            { x: 295, y: 150, w: 12, h: 12, collected: false }
+        ],
+        movingPlatforms: [], enemies: []
+    },
+    // Level 5: Moving Platforms & Enemies Introduction
+    {
+        platforms: [
+            { x: 0, y: 380, w: 120, h: 20 },
+            { x: 260, y: 220, w: 100, h: 15 },
+            { x: 480, y: 380, w: 120, h: 20 }
+        ],
+        goal: { x: 530, y: 340, w: 20, h: 20 },
+        coins: [
+            { x: 300, y: 180, w: 12, h: 12, collected: false }
+        ],
+        movingPlatforms: [
+            { x: 130, y: 320, w: 80, h: 15, dx: 1.5, dy: 0, minX: 130, maxX: 230, minY: 0, maxY: 0 },
+            { x: 380, y: 220, w: 80, h: 15, dx: 0, dy: 1.5, minX: 0, maxX: 0, minY: 180, maxY: 320 }
+        ],
+        enemies: [
+            { x: 20, y: 362, w: 18, h: 18, dx: 1, dy: 0, minX: 10, maxX: 90, minY: 0, maxY: 0 }
+        ]
+    },
+    // Level 6: The Ultimate Gauntlet
+    {
+        platforms: [
+            { x: 0, y: 380, w: 80, h: 20 },
+            { x: 200, y: 120, w: 100, h: 15 },
+            { x: 480, y: 120, w: 100, h: 15 }
+        ],
+        goal: { x: 520, y: 80, w: 20, h: 20 },
+        coins: [
+            { x: 130, y: 150, w: 12, h: 12, collected: false },
+            { x: 240, y: 80, w: 12, h: 12, collected: false }
+        ],
+        movingPlatforms: [
+            { x: 90, y: 320, w: 70, h: 15, dx: 0, dy: -1.5, minX: 0, maxX: 0, minY: 180, maxY: 320 },
+            { x: 320, y: 220, w: 70, h: 15, dx: 2, dy: 0, minX: 320, maxX: 440, minY: 0, maxY: 0 }
+        ],
+        enemies: [
+            { x: 200, y: 102, w: 18, h: 18, dx: 1.5, dy: 0, minX: 200, maxX: 280, minY: 0, maxY: 0 }
+        ]
+    }
+];
+
+window.addEventListener("keydown", e => keys[e.code] = true);
+window.addEventListener("keyup", e => keys[e.code] = false);
+
+function resetPlayer() {
+    player.x = 40;
+    player.y = 300;
+    player.vx = 0;
+    player.vy = 0;
+}
+
+function loadLevel(index) {
+    currentLevel = index;
+    const lvl = levels[currentLevel];
+
+    if (lvl.coins) lvl.coins.forEach(c => c.collected = false);
+
+    if (lvl.movingPlatforms) {
+        lvl.movingPlatforms.forEach(mp => {
+            mp.curX = mp.x;
+            mp.curY = mp.y;
+            mp.curDx = mp.dx;
+            mp.curDy = mp.dy;
+        });
+    }
+
+    if (lvl.enemies) {
+        lvl.enemies.forEach(e => {
+            e.curX = e.x;
+            e.curY = e.y;
+            e.curDx = e.dx;
+            e.curDy = e.dy;
+        });
+    }
+
+    resetPlayer();
+}
+
+function update() {
+    const lvl = levels[currentLevel];
+
+    // Controls
+    if (keys["ArrowRight"] || keys["KeyD"]) player.vx = 4;
+    else if (keys["ArrowLeft"] || keys["KeyA"]) player.vx = -4;
+    else player.vx = 0;
+
+    if ((keys["Space"] || keys["ArrowUp"] || keys["KeyW"]) && player.grounded) {
+        player.vy = -10;
+        player.grounded = false;
+    }
+
+    // Update Moving Platforms
+    if (lvl.movingPlatforms) {
+        lvl.movingPlatforms.forEach(mp => {
+            mp.curX += mp.curDx;
+            mp.curY += mp.curDy;
+
+            if (mp.dx !== 0 && (mp.curX <= mp.minX || mp.curX >= mp.maxX)) mp.curDx *= -1;
+            if (mp.dy !== 0 && (mp.curY <= mp.minY || mp.curY >= mp.maxY)) mp.curDy *= -1;
+        });
+    }
+
+    // Update Enemies
+    if (lvl.enemies) {
+        lvl.enemies.forEach(e => {
+            e.curX += e.curDx;
+            e.curY += e.curDy;
+
+            if (e.dx !== 0 && (e.curX <= e.minX || e.curX >= e.maxX)) e.curDx *= -1;
+            if (e.dy !== 0 && (e.curY <= e.minY || e.curY >= e.maxY)) e.curDy *= -1;
+
+            // Player collision with enemy -> Reset level
+            if (player.x < e.curX + e.w && player.x + player.w > e.curX &&
+                player.y < e.curY + e.h && player.y + player.h > e.curY) {
+                loadLevel(currentLevel);
+            }
+        });
+    }
+
+    // Apply Physics
+    player.vy += gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // Platform Collisions (Static + Moving)
+    player.grounded = false;
+
+    const allPlatforms = [
+        ...lvl.platforms,
+        ...(lvl.movingPlatforms ? lvl.movingPlatforms.map(m => ({ x: m.curX, y: m.curY, w: m.w, h: m.h, dx: m.curDx, dy: m.curDy })) : [])
+    ];
+
+    for (let p of allPlatforms) {
+        if (player.x < p.x + p.w && player.x + player.w > p.x &&
+            player.y + player.h > p.y && player.y + player.h < p.y + p.h + player.vy) {
+            player.y = p.y - player.h;
+            player.vy = 0;
+            player.grounded = true;
+
+            // Carry player along with moving platforms
+            if (p.dx) player.x += p.dx;
+        }
+    }
+
+    // Coin Collisions
+    if (lvl.coins) {
+        lvl.coins.forEach(c => {
+            if (!c.collected &&
+                player.x < c.x + c.w && player.x + player.w > c.x &&
+                player.y < c.y + c.h && player.y + player.h > c.y) {
+                c.collected = true;
+            }
+        });
+    }
+
+    // Canvas Boundaries
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+    if (player.y > canvas.height) loadLevel(currentLevel); // Pit death reset
+
+    // Win Condition
+    const totalCoins = lvl.coins ? lvl.coins.length : 0;
+    const coinsCollected = lvl.coins ? lvl.coins.filter(c => c.collected).length : 0;
+    const allCoinsCollected = coinsCollected === totalCoins;
+
+    if (player.x < lvl.goal.x + lvl.goal.w && player.x + player.w > lvl.goal.x &&
+        player.y < lvl.goal.y + lvl.goal.h && player.y + player.h > lvl.goal.y) {
+
+        if (!allCoinsCollected) {
+            player.x -= player.vx * 2;
+        } else {
+            if (currentLevel < levels.length - 1) {
+                alert(`Level ${currentLevel + 1} Cleared! Moving to Level ${currentLevel + 2}...`);
+                loadLevel(currentLevel + 1);
+            } else {
+                alert("You beat all 6 levels! Champion!");
+                loadLevel(0);
+            }
+        }
+    }
+}
+
+function draw() {
+    const lvl = levels[currentLevel];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // HUD Text
+    const totalCoins = lvl.coins ? lvl.coins.length : 0;
+    const coinsCollected = lvl.coins ? lvl.coins.filter(c => c.collected).length : 0;
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(`Level ${currentLevel + 1} / ${levels.length}`, 15, 25);
+    if (totalCoins > 0) {
+        ctx.fillText(`Coins: ${coinsCollected} / ${totalCoins}`, 15, 45);
+    }
+
+    // Static Platforms (Green)
+    ctx.fillStyle = "#4CAF50";
+    lvl.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+    // Moving Platforms (Cyan)
+    if (lvl.movingPlatforms) {
+        ctx.fillStyle = "#00BCD4";
+        lvl.movingPlatforms.forEach(mp => ctx.fillRect(mp.curX, mp.curY, mp.w, mp.h));
+    }
+
+    // Enemies (Crimson Red)
+    if (lvl.enemies) {
+        ctx.fillStyle = "#E91E63";
+        lvl.enemies.forEach(e => ctx.fillRect(e.curX, e.curY, e.w, e.h));
+    }
+
+    // Coins (Gold)
+    if (lvl.coins) {
+        ctx.fillStyle = "#FFD700";
+        lvl.coins.forEach(c => {
+            if (!c.collected) ctx.fillRect(c.x, c.y, c.w, c.h);
+        });
+    }
+
+    // Goal (Gold when active, dark gray when locked)
+    const isUnlocked = totalCoins === 0 || coinsCollected === totalCoins;
+    ctx.fillStyle = isUnlocked ? "#FFD700" : "#555555";
+    ctx.fillRect(lvl.goal.x, lvl.goal.y, lvl.goal.w, lvl.goal.h);
+
+    // Player (Orange)
+    ctx.fillStyle = "#FF5722";
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+loadLevel(0);
+gameLoop();
+</script>
+</body>
+</html>
+
