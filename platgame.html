@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Simple 2D Platformer - 6 Levels</title>
+    <title>Simple 2D Platformer - 8 Levels with Speedrun & Practice Mode</title>
     <style>
         body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        canvas { background: #222; border: 2px solid #555; }
+        canvas { background: #222; border: 2px solid #555; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -20,6 +20,27 @@ const gravity = 0.5;
 const keys = {};
 
 let currentLevel = 0;
+let currentFloor = 0;
+
+// Speedrun Timer, Practice Mode & Personal Best State
+let isPracticeMode = false;
+let timerStarted = false;
+let timerFinished = false;
+let startTime = 0;
+let elapsedTime = 0;
+let personalBest = localStorage.getItem("platformer_pb") ? parseInt(localStorage.getItem("platformer_pb")) : null;
+
+// Boss State Object
+const boss = {
+    active: false,
+    x: 240, y: 50, w: 120, h: 50,
+    hp: 3, maxHp: 3,
+    attackTimer: 0,
+    attackInterval: 90,
+    lasers: [],
+    projectiles: [],
+    crystals: []
+};
 
 const levels = [
     // Level 1: Standard
@@ -57,7 +78,7 @@ const levels = [
         goal: { x: 490, y: 100, w: 20, h: 20 },
         coins: [], movingPlatforms: [], enemies: []
     },
-    // Level 4: Longer Route + 3 Required Off-Route Coins
+    // Level 4: Required Coins
     {
         platforms: [
             { x: 0, y: 380, w: 600, h: 20 },
@@ -78,7 +99,7 @@ const levels = [
         ],
         movingPlatforms: [], enemies: []
     },
-    // Level 5: Moving Platforms & Enemies Introduction
+    // Level 5: Moving Platforms & Enemies
     {
         platforms: [
             { x: 0, y: 380, w: 120, h: 20 },
@@ -86,9 +107,7 @@ const levels = [
             { x: 480, y: 380, w: 120, h: 20 }
         ],
         goal: { x: 530, y: 340, w: 20, h: 20 },
-        coins: [
-            { x: 300, y: 180, w: 12, h: 12, collected: false }
-        ],
+        coins: [{ x: 300, y: 180, w: 12, h: 12, collected: false }],
         movingPlatforms: [
             { x: 130, y: 320, w: 80, h: 15, dx: 1.5, dy: 0, minX: 130, maxX: 230, minY: 0, maxY: 0 },
             { x: 380, y: 220, w: 80, h: 15, dx: 0, dy: 1.5, minX: 0, maxX: 0, minY: 180, maxY: 320 }
@@ -97,7 +116,7 @@ const levels = [
             { x: 20, y: 362, w: 18, h: 18, dx: 1, dy: 0, minX: 10, maxX: 90, minY: 0, maxY: 0 }
         ]
     },
-    // Level 6: The Ultimate Gauntlet
+    // Level 6: The Gauntlet
     {
         platforms: [
             { x: 0, y: 380, w: 80, h: 20 },
@@ -116,11 +135,123 @@ const levels = [
         enemies: [
             { x: 200, y: 102, w: 18, h: 18, dx: 1.5, dy: 0, minX: 200, maxX: 280, minY: 0, maxY: 0 }
         ]
+    },
+    // Level 7: 3-Floor Tower
+    {
+        floors: [
+            {
+                platforms: [
+                    { x: 0, y: 380, w: 600, h: 20 },
+                    { x: 100, y: 300, w: 100, h: 15 },
+                    { x: 250, y: 220, w: 100, h: 15 },
+                    { x: 400, y: 140, w: 100, h: 15 },
+                    { x: 250, y: 60, w: 100, h: 15 }
+                ],
+                coins: [{ x: 290, y: 30, w: 12, h: 12, collected: false }],
+                movingPlatforms: [], enemies: []
+            },
+            {
+                platforms: [
+                    { x: 0, y: 380, w: 600, h: 20 },
+                    { x: 80, y: 300, w: 100, h: 15 },
+                    { x: 220, y: 220, w: 120, h: 15 },
+                    { x: 380, y: 140, w: 100, h: 15 },
+                    { x: 200, y: 60, w: 120, h: 15 }
+                ],
+                coins: [{ x: 245, y: 30, w: 12, h: 12, collected: false }],
+                movingPlatforms: [
+                    { x: 420, y: 280, w: 70, h: 15, dx: 0, dy: -1.5, minX: 0, maxX: 0, minY: 140, maxY: 280 }
+                ],
+                enemies: [
+                    { x: 230, y: 202, w: 18, h: 18, dx: 1.5, dy: 0, minX: 220, maxX: 320, minY: 0, maxY: 0 }
+                ]
+            },
+            {
+                platforms: [
+                    { x: 0, y: 380, w: 600, h: 20 },
+                    { x: 100, y: 300, w: 100, h: 15 },
+                    { x: 250, y: 220, w: 100, h: 15 },
+                    { x: 400, y: 140, w: 100, h: 15 }
+                ],
+                goal: { x: 440, y: 100, w: 20, h: 20 },
+                coins: [{ x: 290, y: 190, w: 12, h: 12, collected: false }],
+                movingPlatforms: [],
+                enemies: [
+                    { x: 260, y: 202, w: 18, h: 18, dx: 2, dy: 0, minX: 250, maxX: 330, minY: 0, maxY: 0 }
+                ]
+            }
+        ]
+    },
+    // Level 8: Boss Fight Level
+    {
+        isBossLevel: true,
+        platforms: [
+            { x: 0, y: 380, w: 600, h: 20 }
+        ],
+        goal: { x: 520, y: 340, w: 20, h: 20 },
+        coins: [], movingPlatforms: [], enemies: []
     }
 ];
 
-window.addEventListener("keydown", e => keys[e.code] = true);
+// Canvas Click Event for Practice Toggle Button (Top-Left)
+canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Button bounds in Top-Left: x: 15, y: 52, width: 150, height: 26
+    if (mouseX >= 15 && mouseX <= 165 && mouseY >= 52 && mouseY <= 78) {
+        isPracticeMode = !isPracticeMode;
+        timerStarted = false;
+        timerFinished = false;
+        elapsedTime = 0;
+        loadLevel(0);
+    }
+});
+
+window.addEventListener("keydown", e => {
+    keys[e.code] = true;
+    
+    // Quick Reset ('R' Key)
+    if (e.code === "KeyR") {
+        timerStarted = false;
+        timerFinished = false;
+        elapsedTime = 0;
+        loadLevel(0);
+        return;
+    }
+
+    // Practice Level Skip ('Q' = Previous, 'E' = Next) - Only works in Practice Mode!
+    if (isPracticeMode) {
+        if (e.code === "KeyQ") {
+            if (currentLevel > 0) loadLevel(currentLevel - 1);
+            return;
+        }
+        if (e.code === "KeyE") {
+            if (currentLevel < levels.length - 1) loadLevel(currentLevel + 1);
+            return;
+        }
+    }
+
+    // Start timer on movement
+    if (!timerStarted && !timerFinished) {
+        if (["ArrowRight", "ArrowLeft", "ArrowUp", "Space", "KeyA", "KeyD", "KeyW"].includes(e.code)) {
+            timerStarted = true;
+            startTime = Date.now();
+        }
+    }
+});
+
 window.addEventListener("keyup", e => keys[e.code] = false);
+
+function formatTime(ms) {
+    if (ms === null || ms === undefined) return "--:--.-";
+    const totalSec = Math.floor(ms / 1000);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    const tenths = Math.floor((ms % 1000) / 100);
+    return `mins.toString().padStart(2,'0'):{secs.toString().padStart(2, '0')}.${tenths}`;
+}
 
 function resetPlayer() {
     player.x = 40;
@@ -129,37 +260,149 @@ function resetPlayer() {
     player.vy = 0;
 }
 
+function getCurrentFloorData() {
+    const lvl = levels[currentLevel];
+    return lvl.floors ? lvl.floors[currentFloor] : lvl;
+}
+
 function loadLevel(index) {
     currentLevel = index;
+    currentFloor = 0;
     const lvl = levels[currentLevel];
 
-    if (lvl.coins) lvl.coins.forEach(c => c.collected = false);
+    const resetData = (data) => {
+        if (data.coins) data.coins.forEach(c => c.collected = false);
+        if (data.movingPlatforms) {
+            data.movingPlatforms.forEach(mp => {
+                mp.curX = mp.x; mp.curY = mp.y; mp.curDx = mp.dx; mp.curDy = mp.dy;
+            });
+        }
+        if (data.enemies) {
+            data.enemies.forEach(e => {
+                e.curX = e.x; e.curY = e.y; e.curDx = e.dx; e.curDy = e.dy;
+            });
+        }
+    };
 
-    if (lvl.movingPlatforms) {
-        lvl.movingPlatforms.forEach(mp => {
-            mp.curX = mp.x;
-            mp.curY = mp.y;
-            mp.curDx = mp.dx;
-            mp.curDy = mp.dy;
-        });
-    }
+    if (lvl.floors) lvl.floors.forEach(resetData);
+    else resetData(lvl);
 
-    if (lvl.enemies) {
-        lvl.enemies.forEach(e => {
-            e.curX = e.x;
-            e.curY = e.y;
-            e.curDx = e.dx;
-            e.curDy = e.dy;
-        });
+    if (lvl.isBossLevel) {
+        boss.active = true;
+        boss.hp = Math.floor(Math.random() * 3) + 3;
+        boss.maxHp = boss.hp;
+        boss.attackTimer = 0;
+        boss.attackInterval = Math.floor(60 + Math.random() * 60);
+        boss.lasers = [];
+        boss.projectiles = [];
+        boss.crystals = [];
+    } else {
+        boss.active = false;
     }
 
     resetPlayer();
 }
 
+function getCoinsStatus() {
+    const lvl = levels[currentLevel];
+    let total = 0, collected = 0;
+    const count = (data) => {
+        if (data.coins) {
+            total += data.coins.length;
+            collected += data.coins.filter(c => c.collected).length;
+        }
+    };
+    if (lvl.floors) lvl.floors.forEach(count);
+    else count(lvl);
+    return { total, collected };
+}
+
+function updateBoss() {
+    if (!boss.active || boss.hp <= 0) return;
+
+    boss.x = 240 + Math.sin(Date.now() / 500) * 80;
+
+    boss.attackTimer++;
+    if (boss.attackTimer >= boss.attackInterval) {
+        boss.attackTimer = 0;
+        boss.attackInterval = Math.floor(60 + Math.random() * 60);
+
+        if (Math.random() < 0.33) {
+            boss.lasers.push({
+                x: boss.x + boss.w / 2 - 8,
+                y: boss.y + boss.h,
+                w: 16, h: 30, vy: 7
+            });
+        } else {
+            const dx = (player.x + player.w / 2) - (boss.x + boss.w / 2);
+            const dy = (player.y + player.h / 2) - (boss.y + boss.h);
+            const dist = Math.hypot(dx, dy);
+            boss.projectiles.push({
+                x: boss.x + boss.w / 2 - 8,
+                y: boss.y + boss.h,
+                w: 14, h: 14,
+                vx: (dx / dist) * 4,
+                vy: (dy / dist) * 4
+            });
+        }
+    }
+
+    for (let i = boss.lasers.length - 1; i >= 0; i--) {
+        const l = boss.lasers[i];
+        l.y += l.vy;
+
+        if (l.y + l.h >= 380) {
+            boss.crystals.push({ x: l.x, y: 366, w: 14, h: 14 });
+            boss.lasers.splice(i, 1);
+            continue;
+        }
+
+        if (player.x < l.x + l.w && player.x + player.w > l.x &&
+            player.y < l.y + l.h && player.y + player.h > l.y) {
+            loadLevel(currentLevel);
+        }
+    }
+
+    for (let i = boss.projectiles.length - 1; i >= 0; i--) {
+        const p = boss.projectiles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (player.x < p.x + p.w && player.x + player.w > p.x &&
+            player.y < p.y + p.h && player.y + player.h > p.y) {
+            loadLevel(currentLevel);
+        }
+
+        if (p.y > 400 || p.x < -20 || p.x > 620) {
+            boss.projectiles.splice(i, 1);
+        }
+    }
+
+    for (let i = boss.crystals.length - 1; i >= 0; i--) {
+        const c = boss.crystals[i];
+        if (player.x < c.x + c.w && player.x + player.w > c.x &&
+            player.y < c.y + c.h && player.y + player.h > c.y) {
+            
+            boss.hp--;
+            boss.crystals.splice(i, 1);
+
+            if (boss.hp <= 0) {
+                boss.lasers = [];
+                boss.projectiles = [];
+                boss.crystals = [];
+            }
+        }
+    }
+}
+
 function update() {
     const lvl = levels[currentLevel];
+    const floor = getCurrentFloorData();
 
-    // Controls
+    if (timerStarted && !timerFinished) {
+        elapsedTime = Date.now() - startTime;
+    }
+
     if (keys["ArrowRight"] || keys["KeyD"]) player.vx = 4;
     else if (keys["ArrowLeft"] || keys["KeyA"]) player.vx = -4;
     else player.vx = 0;
@@ -169,27 +412,26 @@ function update() {
         player.grounded = false;
     }
 
-    // Update Moving Platforms
-    if (lvl.movingPlatforms) {
-        lvl.movingPlatforms.forEach(mp => {
+    if (lvl.isBossLevel) {
+        updateBoss();
+    }
+
+    if (floor.movingPlatforms) {
+        floor.movingPlatforms.forEach(mp => {
             mp.curX += mp.curDx;
             mp.curY += mp.curDy;
-
             if (mp.dx !== 0 && (mp.curX <= mp.minX || mp.curX >= mp.maxX)) mp.curDx *= -1;
             if (mp.dy !== 0 && (mp.curY <= mp.minY || mp.curY >= mp.maxY)) mp.curDy *= -1;
         });
     }
 
-    // Update Enemies
-    if (lvl.enemies) {
-        lvl.enemies.forEach(e => {
+    if (floor.enemies) {
+        floor.enemies.forEach(e => {
             e.curX += e.curDx;
             e.curY += e.curDy;
-
             if (e.dx !== 0 && (e.curX <= e.minX || e.curX >= e.maxX)) e.curDx *= -1;
             if (e.dy !== 0 && (e.curY <= e.minY || e.curY >= e.maxY)) e.curDy *= -1;
 
-            // Player collision with enemy -> Reset level
             if (player.x < e.curX + e.w && player.x + player.w > e.curX &&
                 player.y < e.curY + e.h && player.y + player.h > e.curY) {
                 loadLevel(currentLevel);
@@ -197,17 +439,14 @@ function update() {
         });
     }
 
-    // Apply Physics
     player.vy += gravity;
     player.x += player.vx;
     player.y += player.vy;
 
-    // Platform Collisions (Static + Moving)
     player.grounded = false;
-
     const allPlatforms = [
-        ...lvl.platforms,
-        ...(lvl.movingPlatforms ? lvl.movingPlatforms.map(m => ({ x: m.curX, y: m.curY, w: m.w, h: m.h, dx: m.curDx, dy: m.curDy })) : [])
+        ...floor.platforms,
+        ...(floor.movingPlatforms ? floor.movingPlatforms.map(m => ({ x: m.curX, y: m.curY, w: m.w, h: m.h, dx: m.curDx, dy: m.curDy })) : [])
     ];
 
     for (let p of allPlatforms) {
@@ -216,15 +455,12 @@ function update() {
             player.y = p.y - player.h;
             player.vy = 0;
             player.grounded = true;
-
-            // Carry player along with moving platforms
             if (p.dx) player.x += p.dx;
         }
     }
 
-    // Coin Collisions
-    if (lvl.coins) {
-        lvl.coins.forEach(c => {
+    if (floor.coins) {
+        floor.coins.forEach(c => {
             if (!c.collected &&
                 player.x < c.x + c.w && player.x + player.w > c.x &&
                 player.y < c.y + c.h && player.y + player.h > c.y) {
@@ -233,18 +469,31 @@ function update() {
         });
     }
 
-    // Canvas Boundaries
     if (player.x < 0) player.x = 0;
     if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
-    if (player.y > canvas.height) loadLevel(currentLevel); // Pit death reset
 
-    // Win Condition
-    const totalCoins = lvl.coins ? lvl.coins.length : 0;
-    const coinsCollected = lvl.coins ? lvl.coins.filter(c => c.collected).length : 0;
-    const allCoinsCollected = coinsCollected === totalCoins;
+    if (player.y < -player.h) {
+        if (lvl.floors && currentFloor < lvl.floors.length - 1) {
+            currentFloor++;
+            player.y = 350;
+        }
+    }
 
-    if (player.x < lvl.goal.x + lvl.goal.w && player.x + player.w > lvl.goal.x &&
-        player.y < lvl.goal.y + lvl.goal.h && player.y + player.h > lvl.goal.y) {
+    if (player.y > canvas.height) {
+        if (lvl.floors && currentFloor > 0) {
+            currentFloor--;
+            player.y = 5;
+        } else {
+            loadLevel(currentLevel);
+        }
+    }
+
+    const { total, collected } = getCoinsStatus();
+    const allCoinsCollected = collected === total;
+    const bossDefeated = !lvl.isBossLevel || (lvl.isBossLevel && boss.hp <= 0);
+
+    if (bossDefeated && floor.goal && player.x < floor.goal.x + floor.goal.w && player.x + player.w > floor.goal.x &&
+        player.y < floor.goal.y + floor.goal.h && player.y + player.h > floor.goal.y) {
 
         if (!allCoinsCollected) {
             player.x -= player.vx * 2;
@@ -253,7 +502,25 @@ function update() {
                 alert(`Level ${currentLevel + 1} Cleared! Moving to Level ${currentLevel + 2}...`);
                 loadLevel(currentLevel + 1);
             } else {
-                alert("You beat all 6 levels! Champion!");
+                timerFinished = true;
+                const finalTimeStr = formatTime(elapsedTime);
+                
+                // ONLY track PB if NOT in Practice Mode
+                if (!isPracticeMode) {
+                    if (personalBest === null || elapsedTime < personalBest) {
+                        personalBest = elapsedTime;
+                        localStorage.setItem("platformer_pb", personalBest);
+                        alert(`🎉 NEW PERSONAL BEST! You beat all 8 levels in ${finalTimeStr}!`);
+                    } else {
+                        alert(`VICTORY! You finished in ${finalTimeStr}! (PB: ${formatTime(personalBest)})`);
+                    }
+                } else {
+                    alert(`PRACTICE COMPLETE! Final Time: ${finalTimeStr} (Personal Bests are disabled in Practice Mode)`);
+                }
+                
+                timerStarted = false;
+                timerFinished = false;
+                elapsedTime = 0;
                 loadLevel(0);
             }
         }
@@ -262,49 +529,108 @@ function update() {
 
 function draw() {
     const lvl = levels[currentLevel];
+    const floor = getCurrentFloorData();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // HUD Text
-    const totalCoins = lvl.coins ? lvl.coins.length : 0;
-    const coinsCollected = lvl.coins ? lvl.coins.filter(c => c.collected).length : 0;
+    const { total, collected } = getCoinsStatus();
+    const floorInfo = lvl.floors ? ` (Floor currentFloor+1/{lvl.floors.length})` : "";
+
+    // HUD Text - Top Left Level & Coin Counter
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "15px sans-serif";
+    ctx.fillText(`Level ${currentLevel + 1} / levels.length{floorInfo}`, 15, 22);
+    
+    if (total > 0) {
+        ctx.fillText(`Coins: ${collected} / ${total}`, 15, 42);
+    }
+
+    // Practice Mode Button (Top-Left Corner under level info)
+    const btnX = 15, btnY = total > 0 ? 50 : 32, btnW = 150, btnH = 26;
+    ctx.fillStyle = isPracticeMode ? "#FF9800" : "#333333";
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = isPracticeMode ? "#FFA726" : "#777777";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
 
     ctx.fillStyle = "#FFFFFF";
+    ctx.font = "12px sans-serif";
+    ctx.fillText(`Practice Mode: ${isPracticeMode ? "ON" : "OFF"}`, btnX + 12, btnY + 17);
+    
+    if (isPracticeMode) {
+        ctx.fillStyle = "#CCCCCC";
+        ctx.font = "10px sans-serif";
+        ctx.fillText("(Q/E to skip levels)", btnX, btnY + 38);
+    }
+
+    // HUD Text - Right (Current Time & PB Status)
+    ctx.fillStyle = timerStarted ? "#00FFCC" : "#888888";
     ctx.font = "16px sans-serif";
-    ctx.fillText(`Level ${currentLevel + 1} / ${levels.length}`, 15, 25);
-    if (totalCoins > 0) {
-        ctx.fillText(`Coins: ${coinsCollected} / ${totalCoins}`, 15, 45);
-    }
+    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, 450, 25);
 
-    // Static Platforms (Green)
-    ctx.fillStyle = "#4CAF50";
-    lvl.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
-
-    // Moving Platforms (Cyan)
-    if (lvl.movingPlatforms) {
-        ctx.fillStyle = "#00BCD4";
-        lvl.movingPlatforms.forEach(mp => ctx.fillRect(mp.curX, mp.curY, mp.w, mp.h));
-    }
-
-    // Enemies (Crimson Red)
-    if (lvl.enemies) {
-        ctx.fillStyle = "#E91E63";
-        lvl.enemies.forEach(e => ctx.fillRect(e.curX, e.curY, e.w, e.h));
-    }
-
-    // Coins (Gold)
-    if (lvl.coins) {
+    if (isPracticeMode) {
+        ctx.fillStyle = "#FF9800";
+        ctx.font = "14px sans-serif";
+        ctx.fillText("PRACTICE MODE", 450, 45);
+        ctx.fillText("(PB Disabled)", 450, 62);
+    } else {
         ctx.fillStyle = "#FFD700";
-        lvl.coins.forEach(c => {
+        ctx.font = "16px sans-serif";
+        ctx.fillText(`PB: ${formatTime(personalBest)}`, 450, 45);
+    }
+
+    if (lvl.isBossLevel && boss.hp > 0) {
+        ctx.fillStyle = "#E91E63";
+        ctx.font = "16px sans-serif";
+        ctx.fillText(`Boss HP: ${boss.hp} / ${boss.maxHp}`, 450, isPracticeMode ? 82 : 65);
+    }
+
+    // Platforms
+    ctx.fillStyle = "#4CAF50";
+    floor.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+    // Moving Platforms
+    if (floor.movingPlatforms) {
+        ctx.fillStyle = "#00BCD4";
+        floor.movingPlatforms.forEach(mp => ctx.fillRect(mp.curX, mp.curY, mp.w, mp.h));
+    }
+
+    // Enemies
+    if (floor.enemies) {
+        ctx.fillStyle = "#E91E63";
+        floor.enemies.forEach(e => ctx.fillRect(e.curX, e.curY, e.w, e.h));
+    }
+
+    // Coins
+    if (floor.coins) {
+        ctx.fillStyle = "#FFD700";
+        floor.coins.forEach(c => {
             if (!c.collected) ctx.fillRect(c.x, c.y, c.w, c.h);
         });
     }
 
-    // Goal (Gold when active, dark gray when locked)
-    const isUnlocked = totalCoins === 0 || coinsCollected === totalCoins;
-    ctx.fillStyle = isUnlocked ? "#FFD700" : "#555555";
-    ctx.fillRect(lvl.goal.x, lvl.goal.y, lvl.goal.w, lvl.goal.h);
+    // Boss Drawing
+    if (lvl.isBossLevel && boss.hp > 0) {
+        ctx.fillStyle = "#9C27B0";
+        ctx.fillRect(boss.x, boss.y, boss.w, boss.h);
 
-    // Player (Orange)
+        ctx.fillStyle = "#00FF00";
+        boss.lasers.forEach(l => ctx.fillRect(l.x, l.y, l.w, l.h));
+
+        ctx.fillStyle = "#FF5722";
+        boss.projectiles.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+        ctx.fillStyle = "#39FF14";
+        boss.crystals.forEach(c => ctx.fillRect(c.x, c.y, c.w, c.h));
+    }
+
+    // Goal
+    if (floor.goal) {
+        const isUnlocked = (total === 0 || collected === total) && (!lvl.isBossLevel || boss.hp <= 0);
+        ctx.fillStyle = isUnlocked ? "#FFD700" : "#555555";
+        ctx.fillRect(floor.goal.x, floor.goal.y, floor.goal.w, floor.goal.h);
+    }
+
+    // Player
     ctx.fillStyle = "#FF5722";
     ctx.fillRect(player.x, player.y, player.w, player.h);
 }
@@ -320,4 +646,3 @@ gameLoop();
 </script>
 </body>
 </html>
-
